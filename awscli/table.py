@@ -171,7 +171,9 @@ class ColorizedStyler(Styler):
 class MultiTable(object):
     def __init__(self, terminal_width=None, initial_section=True,
                  column_separator='|', terminal=None,
-                 styler=None, auto_reformat=True):
+                 styler=None, auto_reformat=True,
+                 left_edge='|', right_edge='|', indent='|',
+                 section='-'):
         self._auto_reformat = auto_reformat
         if initial_section:
             self._current_section = Section()
@@ -189,6 +191,10 @@ class MultiTable(object):
             self._styler = styler
         self._rendering_index = 0
         self._column_separator = column_separator
+        self._left_edge = left_edge
+        self._right_edge = right_edge
+        self._indent = indent
+        self._section = section
         if terminal_width is None:
             self._terminal_width = determine_terminal_width()
 
@@ -213,7 +219,8 @@ class MultiTable(object):
         if should_convert_table:
             convert_to_vertical_table(self._sections)
             max_width = self._calculate_max_width()
-        stream.write('-' * max_width + '\n')
+        if self._section:
+            stream.write(self._section * max_width + '\n')
         for section in self._sections:
             self._render_section(section, max_width, stream)
 
@@ -231,8 +238,8 @@ class MultiTable(object):
 
     def _render_section(self, section, max_width, stream):
         stream = IndentedStream(stream, section.indent_level,
-                                self._styler.style_indentation_char('|'),
-                                self._styler.style_indentation_char('|'))
+                                self._styler.style_indentation_char(self._indent),
+                                self._styler.style_indentation_char(self._indent))
         max_width -= (section.indent_level * 2)
         self._render_title(section, max_width, stream)
         self._render_column_titles(section, max_width, stream)
@@ -244,10 +251,11 @@ class MultiTable(object):
         # bottom_border:  ----------------------------
         if section.title:
             title = self._styler.style_title(section.title)
-            stream.write(center_text(title, max_width, '|', '|',
+            stream.write(center_text(title, max_width,
+                                     self._left_edge, self._right_edge,
                                      len(section.title)) + '\n')
-            if not section.headers and not section.rows:
-                stream.write('+%s+' % ('-' * (max_width - 2)) + '\n')
+            if not section.headers and not section.rows and self._section:
+                stream.write('+%s+' % (self._section * (max_width - 2)) + '\n')
 
     def _render_column_titles(self, section, max_width, stream):
         if not section.headers:
@@ -265,12 +273,12 @@ class MultiTable(object):
         for width, header in zip(widths, section.headers):
             stylized_header = self._styler.style_header_column(header)
             if first:
-                left_edge = '|'
+                left_edge = self._left_edge
                 first = False
             else:
                 left_edge = ''
             current += center_text(text=stylized_header, length=width,
-                                   left_edge=left_edge, right_edge='|',
+                                   left_edge=left_edge, right_edge=self._right_edge,
                                    text_length=len(header))
             length_so_far += width
         self._write_line_break(stream, widths)
@@ -282,11 +290,12 @@ class MultiTable(object):
         parts = []
         first = True
         for width in widths:
-            if first:
-                parts.append('+%s+' % ('-' * (width - 2)))
-                first = False
-            else:
-                parts.append('%s+' % ('-' * (width - 1)))
+            if self._section:
+                if first:
+                    parts.append('+%s+' % ('-' * (width - 2)))
+                    first = False
+                else:
+                    parts.append('%s+' % ('-' * (width - 1)))
         parts.append('\n')
         stream.write(''.join(parts))
 
@@ -306,7 +315,7 @@ class MultiTable(object):
             first = True
             for width, element in zip(widths, row):
                 if first:
-                    left_edge = '|'
+                    left_edge = self._left_edge
                     first = False
                 else:
                     left_edge = ''

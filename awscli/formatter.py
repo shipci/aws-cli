@@ -195,35 +195,110 @@ class TableFormatter(FullyBufferedFormatter):
 
 class TextFormatter(FullyBufferedFormatter):
 
-    def _output(self, data, stream, label=None):
-        """
-        A very simple, very stupid text formatter that has no
-        knowledge of the output as defined in the JSON model.
-        """
-        if isinstance(data, dict):
-            scalars = []
-            non_scalars = []
-            for key, val in data.items():
-                if isinstance(val, dict):
-                    non_scalars.append((key, val))
-                elif isinstance(val, list):
-                    non_scalars.append((key, val))
-                elif not isinstance(val, six.string_types):
-                    scalars.append(str(val))
-                else:
-                    scalars.append(val)
-            if label:
-                scalars.insert(0, label.upper())
-            stream.write('\t'.join(scalars))
-            stream.write('\n')
-            for label, non_scalar in non_scalars:
-                self._output(non_scalar, stream, label)
-        elif isinstance(data, list):
-            for d in data:
-                self._output(d, stream)
+    def __init__(self, args, table=None):
+        super(TextFormatter, self).__init__(args)
+        styler = Styler()
+        self.table = MultiTable(initial_section=False,
+                                column_separator='', styler=styler,
+                                left_edge='', right_edge='', indent='',
+                                section='')
 
     def _format_response(self, operation, response, stream):
-        self._output(response, stream)
+        if self._build_table(operation.name, response):
+            try:
+                self.table.render(stream)
+            except IOError:
+                # If they're piping stdout to another process which exits before
+                # we're done writing all of our output, we'll get an error about a
+                # closed pipe which we can safely ignore.
+                pass
+
+    def _build_table(self, title, current, indent_level=0):
+        if not current:
+            return False
+        self.table.new_section(title, indent_level=indent_level)
+        if isinstance(current, list):
+            if isinstance(current[0], dict):
+                self._build_sub_table_from_list(current, indent_level, title)
+            else:
+                for item in current:
+                    self.table.add_row([item])
+        if isinstance(current, dict):
+            # Render a single row section with keys as header
+            # and the row as the values, unless the value
+            # is a list.
+            self._build_sub_table_from_dict(current, indent_level)
+        return True
+
+    def _build_sub_table_from_dict(self, current, indent_level):
+        # Render a single row section with keys as header
+        # and the row as the values, unless the value
+        # is a list.
+        headers, more = self._group_scalar_keys(current)
+        if len(headers) == 1:
+            # Special casing if a dict has a single scalar key/value pair.
+            self.table.add_row([headers[0], current[headers[0]]])
+        elif headers:
+            self.table.add_row_header(headers)
+            self.table.add_row([current[k] for k in headers])
+        for remaining in more:
+            self._build_table(remaining, current[remaining],
+                              indent_level=indent_level + 1)
+
+    def _build_sub_table_from_list(self, current, indent_level, title):
+        headers, more = self._group_scalar_keys_from_list(current)
+        self.table.add_row_header(headers)
+        first = True
+        for element in current:
+            if not first and more:
+                self.table.new_section(title,
+                                       indent_level=indent_level)
+                self.table.add_row_header(headers)
+            first = False
+            # Use .get() to account for the fact that sometimes an element
+            # may not have all the keys from the header.
+            self.table.add_row([element.get(header, '') for header in headers])
+            for remaining in more:
+                # Some of the non scalar attributes may not necessarily
+                # be in every single element of the list, so we need to
+                # check this condition before recursing.
+                if remaining in element:
+                    self._build_table(remaining, element[remaining],
+                                    indent_level=indent_level + 1)
+
+    def _scalar_type(self, element):
+        return not isinstance(element, (list, dict))
+
+    def _group_scalar_keys_from_list(self, list_of_dicts):
+        # We want to make sure we catch all the keys in the list of dicts.
+        # Most of the time each list element has the same keys, but sometimes
+        # a list element will have keys not defined in other elements.
+        headers = set()
+        more = set()
+        for item in list_of_dicts:
+            current_headers, current_more = self._group_scalar_keys(item)
+            headers.update(current_headers)
+            more.update(current_more)
+        headers = list(sorted(headers))
+        more = list(sorted(more))
+        return headers, more
+
+    def _group_scalar_keys(self, current):
+        # Given a dict, separate the keys into those whose values are
+        # scalar, and those whose values aren't.  Return two lists,
+        # one is the scalar value keys, the second is the remaining keys.
+        more = []
+        headers = []
+        for element in current:
+            if self._scalar_type(current[element]):
+                headers.append(element)
+            else:
+                more.append(element)
+        headers.sort()
+        more.sort()
+        return headers, more
+
+
 
 
 def get_formatter(format_type, args):
