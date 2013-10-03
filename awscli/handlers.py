@@ -35,6 +35,8 @@ from awscli.customizations.sessendemail import register_ses_send_email
 from awscli.customizations.iamvirtmfa import IAMVMFAWrapper
 from awscli.customizations.argrename import register_arg_renames
 from awscli.customizations.dryrundocs import register_dryrun_docs
+from awscli.customizations.userdatadoc import register_userdata_docs
+from awscli.customizations.query import register_query_commands
 
 
 def awscli_initialize(event_handlers):
@@ -73,3 +75,5 @@ def awscli_initialize(event_handlers):
     IAMVMFAWrapper(event_handlers)
     register_arg_renames(event_handlers)
     register_dryrun_docs(event_handlers)
+    register_userdata_docs(event_handlers)
+    register_query_commands(event_handlers)
