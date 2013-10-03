@@ -503,6 +503,7 @@ class CLIOperationCaller(object):
         output = args.output
         if output is None:
             output = self._session.get_variable('output')
-        formatter = get_formatter(output, args)
-        formatter(operation, response)
+        if not args.query:
+            formatter = get_formatter(output, args)
+            formatter(operation, response)
 

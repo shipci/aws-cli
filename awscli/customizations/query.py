@@ -10,7 +10,9 @@
 # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
 # ANY KIND, either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
+import sys
 import logging
+from botocore.compat import json
 
 from awscli.arguments import CustomArgument
 import jmespath
@@ -52,4 +54,5 @@ class QueryProcessor(object):
 
     def _run_query(self, http_response, parsed, operation, **kwargs):
         result = self._path.search(parsed)
-        print(result)
+        json.dump(result, sys.stdout, indent=4)
+        sys.stdout.write('\n')
