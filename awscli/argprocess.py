@@ -350,10 +350,14 @@ def unpack_cli_arg(parameter, value):
         return str(value)
 
 
+def parse_json(value, encoding='utf-8'):
+    return json.loads(value, encoding=encoding,
+                      object_pairs_hook=OrderedDict)
+
 def unpack_complex_cli_arg(parameter, value):
     if parameter.type == 'structure' or parameter.type == 'map':
         if value.lstrip()[0] == '{':
-            d = json.loads(value, object_pairs_hook=OrderedDict)
+            d = parse_json(value)
         else:
             msg = 'The value for parameter "%s" must be JSON or path to file.' % (
                 parameter.cli_name)
@@ -362,11 +366,11 @@ def unpack_complex_cli_arg(parameter, value):
     elif parameter.type == 'list':
         if isinstance(value, six.string_types):
             if value.lstrip()[0] == '[':
-                return json.loads(value, object_pairs_hook=OrderedDict)
+                return parse_json(value)
         elif isinstance(value, list) and len(value) == 1:
             single_value = value[0].strip()
             if single_value and single_value[0] == '[':
-                return json.loads(value[0], object_pairs_hook=OrderedDict)
+                return parse_json(value[0])
         return [unpack_cli_arg(parameter.members, v) for v in value]
 
 
